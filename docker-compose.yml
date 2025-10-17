@@ -14,8 +14,11 @@ services:
     depends_on:
       - db
     environment:
-      # Хост здесь 'db' - это имя сервиса базы данных ниже.
-      - DATABASE_URL=postgres://postgres:broadcast3381@db:5432/broadcast
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=broadcast338
+      - DB_NAME=broadcast
 
   # ----------------- Сервис базы данных -----------------
   db:
@@ -27,6 +30,7 @@ services:
       - POSTGRES_PASSWORD=broadcast3381
       - POSTGRES_DB=broadcast
     volumes:
+      # Сохраняем данные базы, чтобы они не пропали
       - pgdata:/var/lib/postgresql/data
 
 volumes:
