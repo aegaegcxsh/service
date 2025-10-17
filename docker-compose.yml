@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  # ----------------- Сервис вашего бота -----------------
+  bot:
+    build: .
+    image: whatsapp-service-bot
+    container_name: whatsapp_bot
+    restart: always
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./.wwebjs_auth:/usr/src/app/.wwebjs_auth
+    depends_on:
+      - db
+    environment:
+      # Хост здесь 'db' - это имя сервиса базы данных ниже.
+      - DATABASE_URL=postgres://postgres:broadcast3381@db:5432/broadcast
+
+  # ----------------- Сервис базы данных -----------------
+  db:
+    image: postgres:15
+    container_name: postgres_db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=broadcast3381
+      - POSTGRES_DB=broadcast
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

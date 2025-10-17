@@ -4,7 +4,15 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
-import { Client as WhatsAppClient, LocalAuth, Message } from 'whatsapp-web.js';
+import {
+  Client as WhatsAppClient,
+  LocalAuth,
+  Message,
+  MessageMedia,
+  MessageSendOptions,
+} from 'whatsapp-web.js';
+import * as fs from 'fs';
+import * as path from 'path';
 import * as qrcode from 'qrcode';
 import { ReplaySubject, Observable } from 'rxjs';
 
@@ -140,17 +148,84 @@ export class WhatsAppService implements OnModuleDestroy {
    * @param message - Текст сообщения.
    * @throws {Error} если клиент не готов к отправке.
    */
-  async sendMessage(phone: string, message: string): Promise<Message> {
-    this.ensureReady(); // Сначала проверяем, готов ли клиент
+  /**
+   * Send a text message or a media (image) with optional caption.
+   * media can be provided as:
+   * - { url: string }
+   * - { path: string }
+   * - { buffer: Buffer, mime?: string, filename?: string }
+   */
+  async sendMessage(
+    phone: string,
+    message?: string,
+    media?: {
+      url?: string;
+      path?: string;
+      buffer?: Buffer;
+      mime?: string;
+      filename?: string;
+    },
+  ): Promise<Message> {
+    this.ensureReady(); // ensure client is ready
 
     const chatId = phone.includes('@') ? phone : `${phone}@c.us`;
-    this.logger.log(`[ID: ${this.instanceId}] Отправка сообщения на ${chatId}`);
+    this.logger.log(`[ID: ${this.instanceId}] Отправка на ${chatId}`);
+
     try {
-      const sentMessage = await this.client!.sendMessage(chatId, message);
+      if (media) {
+        // build MessageMedia
+        let msgMedia: MessageMedia;
+
+        if (media.url) {
+          // uses library helper to fetch and build media
+          // MessageMedia.fromUrl returns a Promise<MessageMedia>
+          msgMedia = await MessageMedia.fromUrl(media.url);
+        } else if (media.path) {
+          const filePath = media.path;
+          if (!fs.existsSync(filePath)) {
+            throw new Error('Media file not found: ' + filePath);
+          }
+          const data = fs.readFileSync(filePath);
+          const ext = path.extname(filePath).toLowerCase();
+          let mime: string;
+          if (media.mime) {
+            mime = media.mime;
+          } else if (ext === '.jpg' || ext === '.jpeg') {
+            mime = 'image/jpeg';
+          } else if (ext === '.png') {
+            mime = 'image/png';
+          } else if (ext === '.gif') {
+            mime = 'image/gif';
+          } else {
+            mime = 'application/octet-stream';
+          }
+          const b64 = data.toString('base64');
+          msgMedia = new MessageMedia(
+            mime,
+            b64,
+            media.filename || path.basename(filePath),
+          );
+        } else if (media.buffer) {
+          const b64 = media.buffer.toString('base64');
+          const mime = media.mime || 'application/octet-stream';
+          msgMedia = new MessageMedia(mime, b64, media.filename || 'file');
+        } else {
+          throw new Error('Unsupported media object');
+        }
+
+        const options: MessageSendOptions = {};
+        if (message) options.caption = message;
+
+        const sent = await this.client!.sendMessage(chatId, msgMedia, options);
+        return sent;
+      }
+
+      // fallback to text-only message
+      const sentMessage = await this.client!.sendMessage(chatId, message ?? '');
       return sentMessage;
     } catch (error) {
       this.logger.error(
-        `[ID: ${this.instanceId}] Не удалось отправить сообщение на ${chatId}`,
+        `[ID: ${this.instanceId}] Ошибка отправки на ${chatId}`,
         error,
       );
       throw error;
@@ -180,7 +255,7 @@ export class WhatsAppService implements OnModuleDestroy {
    * Возвращает информацию о текущем подключении WhatsApp.
    * @returns {object | null} - Объект с информацией или null, если клиент не готов.
    */
-  getInfo() {
+  getInfo(): unknown {
     this.ensureReady();
     return (this.client as any)?.info ?? null;
   }

@@ -58,7 +58,35 @@ export class BroadcastService {
       try {
         console.log('Sending message to', client.phone);
 
-        await this.whatsappService.sendMessage(client.phone, dto.message);
+        // Normalize media object: if buffer provided as base64 string, convert to Buffer
+        let mediaParam:
+          | {
+              url?: string;
+              path?: string;
+              buffer?: Buffer;
+              mime?: string;
+              filename?: string;
+            }
+          | undefined = undefined;
+        if (dto.media) {
+          mediaParam = { ...dto.media };
+          if (typeof (dto.media as any).buffer === 'string') {
+            try {
+              mediaParam.buffer = Buffer.from(
+                (dto.media as any).buffer as string,
+                'base64',
+              );
+            } catch {
+              // leave as-is; sendMessage will validate
+            }
+          }
+        }
+
+        await this.whatsappService.sendMessage(
+          client.phone,
+          dto.message,
+          mediaParam,
+        );
         sent += 1;
         this.eventsSubject.next({
           type: 'progress',

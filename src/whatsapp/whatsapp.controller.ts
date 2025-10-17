@@ -28,11 +28,13 @@ export class WhatsAppController {
    */
   @Sse('qr')
   qrStream() {
-    return this.whatsappService.getQrStream().pipe(map((qr) => ({ data: qr })));
+    return this.whatsappService
+      .getQrStream()
+      .pipe(map((qr: unknown) => ({ data: qr })));
   }
 
   @Get('info')
-  info() {
+  info(): unknown {
     return this.whatsappService.getInfo();
   }
 }

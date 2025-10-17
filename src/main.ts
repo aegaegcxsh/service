@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import * as bodyParser from 'body-parser';
 import { AppModule } from './app.module';
 import { AppService } from './app.service';
 
@@ -36,6 +37,20 @@ async function bootstrap() {
   // store a minimal set of known routes so GET /api/routes returns something useful
   const appService = app.get(AppService);
   appService.setRoutes(['GET /api/', 'GET /api/routes']);
+
+  // Increase payload limits to allow large JSON bodies (base64 images) when necessary.
+  // Be careful with very large limits in production — prefer multipart/form-data for file uploads.
+  app.use(
+    bodyParser.json({
+      limit: process.env.BODY_PARSER_JSON_LIMIT ?? '50mb',
+    }),
+  );
+  app.use(
+    bodyParser.urlencoded({
+      limit: process.env.BODY_PARSER_URLENCODE_LIMIT ?? '50mb',
+      extended: true,
+    }),
+  );
 
   app.enableShutdownHooks();
 
