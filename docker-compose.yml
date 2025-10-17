@@ -8,7 +8,7 @@ services:
     container_name: whatsapp_bot
     restart: always
     ports:
-      - "8000:8000"
+      - "8000:3001"
     volumes:
       - ./.wwebjs_auth:/usr/src/app/.wwebjs_auth
     depends_on:
