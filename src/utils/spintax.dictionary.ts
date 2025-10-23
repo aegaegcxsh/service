@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 // src/utils/spintax.helper.ts (пример файла)
 
 // src/utils/spintax.dictionary.ts (Обновленная версия)
@@ -109,25 +112,79 @@ function spinSingleVariation(variationString: string): string {
   return variationString;
 }
 
-export function applyVariations(
-  message: string,
-  dictionary: { [key: string]: string },
-): string {
+/**
+ * Экранирует специальные символы для использования в RegExp.
+ */
+function escapeRegExp(string: string): string {
+  // Экранирует символы: . * + ? ^ $ { } ( ) | [ ] \
+  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Обрабатывает inline spintax конструкции {opt1|opt2} в тексте.
+ */
+function processInlineSpintax(template: string): string {
+  const spunText = template;
+  const regex = /\{([^}]+?)\}/g; // Нежадный поиск содержимого внутри {}
+  let rebuiltString = '';
+  let lastIndex = 0;
+  let match;
+
+  // Итеративно заменяем, строя новую строку
+  while ((match = regex.exec(spunText)) !== null) {
+    // Добавляем часть строки до совпадения
+    rebuiltString += spunText.substring(lastIndex, match.index);
+
+    const optionsString = match[1]; // Содержимое скобок
+    const options = optionsString.split('|');
+    if (options.length > 0) {
+      // Добавляем случайный вариант
+      rebuiltString +=
+        options[Math.floor(Math.random() * options.length)].trim();
+    } else {
+      // Если внутри скобок пусто или некорректно, оставляем как есть
+      rebuiltString += match[0];
+    }
+    // Обновляем индекс для следующего поиска
+    lastIndex = regex.lastIndex;
+  }
+  // Добавляем оставшуюся часть строки после последнего совпадения
+  rebuiltString += spunText.substring(lastIndex);
+
+  return rebuiltString;
+}
+
+/**
+ * Применяет вариации из словаря к тексту сообщения (регистронезависимо).
+ */
+export function applyVariations(message: string): string {
   let result = message;
 
-  const sortedKeys = Object.keys(dictionary).sort(
+  // Сортируем ключи от самых длинных к самым коротким
+  const sortedKeys = Object.keys(variationsDictionary).sort(
     (a, b) => b.length - a.length,
   );
 
   for (const key of sortedKeys) {
-    const variationString = dictionary[key];
+    const variationString = variationsDictionary[key];
+    // Генерируем *один* случайный вариант для *всех* вхождений этого ключа
     const replacement = spinSingleVariation(variationString);
 
-    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); // Экранирование спецсимволов Regex
-    const regex = new RegExp(escapedKey, 'g');
+    try {
+      // Экранируем ключ для использования в RegExp
+      const escapedKey = escapeRegExp(key);
+      // Создаем регистронезависимый ('i') и глобальный ('g') RegExp
+      const regex = new RegExp(escapedKey, 'gi');
 
-    result = result.replace(regex, replacement);
+      // Выполняем замену
+      result = result.replace(regex, replacement);
+    } catch (e) {
+      console.error(`Ошибка при обработке ключа словаря: "${key}"`, e);
+    }
   }
+
+  // После замен из словаря обрабатываем оставшиеся inline spintax {..|..}
+  result = processInlineSpintax(result);
 
   return result;
 }
