@@ -10,6 +10,10 @@ import { WhatsAppService } from '../whatsapp/whatsapp.service';
 import { User } from '../users/entities/user.entity';
 import { Country } from '../country/entities/country.entities';
 import { Event } from '../events/entities/event.entity';
+import {
+  applyVariations,
+  variationsDictionary,
+} from '../utils/spintax.dictionary';
 import { Subject, Observable } from 'rxjs';
 
 @Injectable()
@@ -56,7 +60,11 @@ export class BroadcastService {
     console.log('Clients cycle');
     for (const client of clients) {
       try {
-        console.log('Sending message to', client.phone);
+        // Применяем вариации из словаря к исходному сообщению из DTO
+        const uniqueMessage = applyVariations(
+          dto.message,
+          variationsDictionary,
+        );
 
         // Normalize media object: if buffer provided as base64 string, convert to Buffer
         let mediaParam:
@@ -84,8 +92,14 @@ export class BroadcastService {
 
         await this.whatsappService.sendMessage(
           client.phone,
-          dto.message,
+          uniqueMessage,
           mediaParam,
+        );
+        console.log(
+          'Message sent to',
+          client.phone,
+          'message: ',
+          uniqueMessage,
         );
         sent += 1;
         this.eventsSubject.next({
@@ -96,8 +110,11 @@ export class BroadcastService {
           current: { id: client.id, phone: client.phone, status: 'ok' },
         });
 
-        // Rate limit: pause between sends to avoid flooding
-        await new Promise((res) => setTimeout(res, 1000));
+        const minDelay = 3000; // Минимальная задержка в миллисекундах (1 секунда)
+        const maxDelay = 20000; // Максимальная задержка в миллисекундах (10 секунд)
+        const randomDelay =
+          Math.floor(Math.random() * (maxDelay - minDelay + 1)) + minDelay;
+        await new Promise((res) => setTimeout(res, randomDelay));
       } catch (err) {
         failed += 1;
         // Log error and continue with next client
